@@ -51,7 +51,6 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
 
         Log.d("In PDataFetcher", "maybe...")
         // open image stream
-        try {
             Log.d("In PDataFetcher", "starting...")
             val imageUrl = model.toURL()
             val conn = imageUrl.openConnection() as HttpURLConnection
@@ -80,7 +79,13 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
                         bArrL.add(skip1)
                         bArrL.add(skip2)
                         Log.d("In PDataFetcher", "skipLastTwo...")
-                        callback.onDataReady(os)
+                        try {
+                            callback.onDataReady(os)
+                        }
+                        catch (e: Exception) {
+                            Log.d("In PDataFetcher", "error...")
+                            e.printStackTrace()
+                        }
                     } else if (sm == -1){
                         // handling condition that input stream is over
                         break@loop
@@ -90,7 +95,13 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
                         val os = ByteArrayInputStream(bArrL.toByteArray())
                         bArrL.removeLastTwo()
                         Log.d("In PDataFetcher", "no skiplastTwo...")
-                        callback.onDataReady(os)
+                        try {
+                            callback.onDataReady(os)
+                        }
+                        catch (e: Exception) {
+                            Log.d("In PDataFetcher", "error...")
+                            e.printStackTrace()
+                        }
                     }
                 } else if (marker.hex() != M_EOI){
                     skipMarker()
@@ -102,12 +113,13 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
             val os = ByteArrayInputStream(bArrL.toByteArray())
             bArrL.removeLastTwo()
             Log.d("In PDataFetcher", "no skiplastTwo...")
-            callback.onDataReady(os)
-        }
-        catch (e: Exception) {
-            Log.d("In PDataFetcher", "error...")
-            e.printStackTrace()
-        }
+            try {
+                callback.onDataReady(os)
+            }
+            catch (e: Exception) {
+                Log.d("In PDataFetcher", "error...")
+                e.printStackTrace()
+            }
     }
 
     fun ArrayList<Byte>.removeLast(): Byte {
