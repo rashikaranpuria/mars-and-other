@@ -21,7 +21,7 @@ class MainActivity : AppCompatActivity() {
                 .load("http://frescolib.org/static/sample-images/animal_d_s.jpg")
                 .diskCacheStrategy(DiskCacheStrategy.NONE)
                 .skipMemoryCache(true)
-//                .signature(ObjectKey(System.currentTimeMillis()))
+                .signature(ObjectKey(System.currentTimeMillis()))
 //                .apply(RequestOptions()
 //                        .signature(ObjectKey(System.currentTimeMillis())))
                 .into(imageView)

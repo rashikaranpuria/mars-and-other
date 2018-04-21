@@ -15,6 +15,8 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
     lateinit var iS:InputStream
     var bArrL = ArrayList<Byte>()
 
+    var inputStreamFinished: Boolean = false
+
     val M_PAD = "0"   /* Padding byte used when 0xFF is found in compressed data */
     val M_RST0 = "d0"   /* Restart Markers 0-7, related to DRI */
     val M_RST1 = "d1"
@@ -40,11 +42,13 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
 
     override fun cancel() {
         // Cancel ongoing load -
+        iS.close()
     }
 
     fun Int.hex(): String = Integer.toHexString(this)
 
     override fun loadData(priority: Priority, callback: DataFetcher.DataCallback<in InputStream>) {
+
         Log.d("In PDataFetcher", "maybe...")
         // open image stream
         try {
@@ -59,15 +63,16 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
                 // Deal with image not valid
             }
             var marker: Int
-            do {
+            loop@ do {
                 Log.d("In PDataFetcher", "doing...")
                 marker = nextMarker()
+                if(marker == -1) break@loop
                 if (marker.hex() == M_SOS) {
                     // add the skip SOS code here
-                    val skipLastTwo = skipSos()
-                    if (skipLastTwo) {
-                        var skip2 = bArrL.removeLast()
-                        var skip1 = bArrL.removeLast()
+                    val sm = skipSos()
+                    if (sm != 0) {
+                        val skip2 = bArrL.removeLast()
+                        val skip1 = bArrL.removeLast()
                         bArrL.add(255.toByte())
                         bArrL.add(217.toByte())
                         val os = ByteArrayInputStream(bArrL.toByteArray())
@@ -76,8 +81,10 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
                         bArrL.add(skip2)
                         Log.d("In PDataFetcher", "skipLastTwo...")
                         callback.onDataReady(os)
-                    }
-                    else {
+                    } else if (sm == -1){
+                        // handling condition that input stream is over
+                        break@loop
+                    } else {
                         bArrL.add(255.toByte())
                         bArrL.add(217.toByte())
                         val os = ByteArrayInputStream(bArrL.toByteArray())
@@ -85,12 +92,17 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
                         Log.d("In PDataFetcher", "no skiplastTwo...")
                         callback.onDataReady(os)
                     }
-                }
-                else if (marker.hex() != M_EOI){
+                } else if (marker.hex() != M_EOI){
                     skipMarker()
                 }
-            }
-            while (marker.hex() != M_EOI)
+            } while (marker.hex() != M_EOI)
+
+            bArrL.add(255.toByte())
+            bArrL.add(217.toByte())
+            val os = ByteArrayInputStream(bArrL.toByteArray())
+            bArrL.removeLastTwo()
+            Log.d("In PDataFetcher", "no skiplastTwo...")
+            callback.onDataReady(os)
         }
         catch (e: Exception) {
             Log.d("In PDataFetcher", "error...")
@@ -114,6 +126,10 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
     fun readTwo(): Int {
         val c1 = readOne()
         val c2 = readOne()
+
+        if (c1 == -1 || c2 == -1)
+            return -1
+
         val c3 = c1 shl 8
         val cur = c3 + c2
         Log.d("In PDataFetcher", "read two..." + c1.hex() + " " +c2.hex() + " c3: " + c3)
@@ -122,7 +138,8 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
 
     fun readOne(): Int {
         val c = iS.read()
-        bArrL.add(c.toByte())
+        if (c != -1)
+            bArrL.add(c.toByte())
 
         Log.d("In PDataFetcher", "read one..." + c.hex())
         return c
@@ -131,14 +148,17 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
     fun nextMarker(): Int {
 
         var marker = readOne()
-        while (marker.hex() != M_FF) {
+        while (marker.hex() != M_FF && marker != -1) {
             marker = readOne()
         }
 
-        do{
-            marker = readOne()
+        if (marker != -1) {
+            do{
+                marker = readOne()
+            }
+            while (marker.hex() == M_FF && marker != -1)
         }
-        while (marker.hex() == M_FF)
+
 
         Log.d("In PDataFetcher", "next marker..." + marker)
         return marker
@@ -149,34 +169,29 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
         var len = readTwo() - 2
         var cur = readOne()
         Log.d("In PDataFetcher", "skip marker len: " + len + "cur: " + cur)
-        while (len > 0) {
+        while (len > 0 && cur != -1) {
             len--
             // store cur somewhere
             cur = readOne()
         }
-//        if (cur == -1) {
-//            Log.d("In PDataFetcher", "-1 oo barl len: " + bArrL.size + "barl last one: " + bArrL.get(bArrL.size - 1))
-//        }
-//        Log.d("In PDataFetcher", "barl len: " + bArrL.size + "barl last one: " + bArrL.get(bArrL.size - 1))
-//        bArrL.forEach { Log.d(" there", it.toString()) }
         Log.d("In PDataFetcher", "last read..." + bArrL.last())
     }
 
-    fun skipSos(): Boolean {
+    fun skipSos(): Int {
         Log.d("In PDataFetcher", "skip sos...")
         var cur: Int
-        var skipLastTwo = false
         while (true) {
             cur = readOne()
-            while (cur.hex() != M_FF) {
+            while (cur.hex() != M_FF && cur != -1) {
                 cur = readOne()
             }
 
-            do{
-                cur = readOne()
+            if (cur != -1) {
+                do{
+                    cur = readOne()
+                }
+                while (cur.hex() == M_FF && cur != -1)
             }
-            while (cur.hex() == M_FF)
-
 
             when (cur.hex()) {
                 M_RST0-> cur = 0
@@ -189,10 +204,9 @@ class PDataFetcher(private val model: GlideUrl): DataFetcher<InputStream> {
                 M_RST7-> cur = 0
             }
             if (cur != 0) {
-                skipLastTwo = true
                 break
             }
         }
-        return skipLastTwo
+        return cur
     }
 }
