@@ -13,6 +13,6 @@ class MyAppGlideModule : AppGlideModule() {
 
     override fun registerComponents(context: Context, glide: Glide, registry: Registry) {
         registry.prepend(GlideUrl::class.java, InputStream::class.java, PModelLoaderFactory())
-        //        super.registerComponents(context, glide, registry);
+//                super.registerComponents(context, glide, registry);
     }
 }
