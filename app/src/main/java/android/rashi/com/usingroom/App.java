@@ -4,10 +4,13 @@ import android.app.Application;
 
 import com.facebook.drawee.backends.pipeline.Fresco;
 
+import timber.log.Timber;
+
 public class App extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
         Fresco.initialize(this);
+        Timber.plant(new Timber.DebugTree());
     }
 }
